@@ -153,6 +153,10 @@ dependencies:
 	@cd ../deps/hiredis && $(MAKE) static ARCH="$(ARCH)"
 	@printf '%b %b\n' $(MAKECOLOR)MAKE$(ENDCOLOR) $(BINCOLOR)linenoise$(ENDCOLOR)
 	@cd ../deps/linenoise && $(MAKE) ARCH="$(ARCH)"
+	@printf '%b %b\n' $(MAKECOLOR)MAKE$(ENDCOLOR) $(BINCOLOR)snappy$(ENDCOLOR)
+	@cd ../deps/snappy && $(MAKE) ARCH="$(ARCH)"
+	@printf '%b %b\n' $(MAKECOLOR)MAKE$(ENDCOLOR) $(BINCOLOR)leveldb$(ENDCOLOR)
+	@cd ../deps/leveldb && $(MAKE) ARCH="$(ARCH)"
 
 ../deps/jemalloc/lib/libjemalloc.a:
 	@printf '%b %b\n' $(MAKECOLOR)MAKE$(ENDCOLOR) $(BINCOLOR)jemalloc$(ENDCOLOR)
@@ -185,7 +189,7 @@ redis-check-aof: $(CHECKAOFOBJ)
 	$(QUIET_LINK)$(CC) -o $(CHECKAOFPRGNAME) $(CCOPT) $(DEBUG) $(CHECKAOFOBJ) $(CCLINK)
 
 redis-server: $(OBJ)
-	$(QUIET_LINK)$(CC) -o $(PRGNAME) $(CCOPT) $(DEBUG) $(OBJ) $(CCLINK) $(ALLOC_LINK)
+	$(QUIET_LINK)$(CC) -o $(PRGNAME) $(CCOPT) $(DEBUG) $(OBJ) $(CCLINK) $(ALLOC_LINK) ../deps/leveldb/libleveldb.a
 
 # Because the jemalloc.h header is generated as a part of the jemalloc build
 # process, building it should complete before building any other object.
@@ -199,7 +203,7 @@ distclean: clean
 	-(cd .. && $(MAKE) clean)
 
 dep:
-	$(CC) -MM *.c -I ../deps/hiredis -I ../deps/linenoise
+	$(CC) -MM *.c -I ../deps/hiredis -I ../deps/linenoise -I ../deps/leveldb -I ../deps/leveldb/include
 
 test: redis-server redis-check-aof
 	@(cd ..; ./runtest)

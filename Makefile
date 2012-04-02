@@ -3,6 +3,7 @@
 TARGETS=32bit noopt test
 
 all:
+	@cd deps/snappy && ./configure
 	cd src && $(MAKE) $@
 
 install: dummy
@@ -13,6 +14,8 @@ clean:
 	cd deps/hiredis && $(MAKE) $@
 	cd deps/linenoise && $(MAKE) $@
 	-(cd deps/jemalloc && $(MAKE) distclean)
+	cd deps/snappy && $(MAKE) $@
+	cd deps/leveldb && $(MAKE) $@
 
 distclean: clean
 
