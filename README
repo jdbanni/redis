@@ -4,6 +4,12 @@ Where to find complete Redis documentation?
 This README is just a fast "quick start" document. You can find more detailed
 documentation at http://redis.io
 
+LevelDB
+-------
+
+This version of Redis is linked to Googles LevelDB key/value store implementation. Included
+is Snappy compression.
+
 Building Redis
 --------------
 
