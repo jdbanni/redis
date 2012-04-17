@@ -5,6 +5,7 @@
 release_hdr := $(shell sh -c './mkreleasehdr.sh')
 uname_S := $(shell sh -c 'uname -s 2>/dev/null || echo not')
 OPTIMIZATION?=-O2
+#OPTIMIZATION?=-g2
 
 CCCOLOR="\033[34m"
 LINKCOLOR="\033[34;1m"
@@ -58,7 +59,7 @@ PREFIX= /usr/local
 INSTALL_BIN= $(PREFIX)/bin
 INSTALL= cp -pf
 
-OBJ = adlist.o ae.o anet.o dict.o redis.o sds.o zmalloc.o lzf_c.o lzf_d.o pqsort.o zipmap.o sha1.o ziplist.o release.o networking.o util.o object.o db.o replication.o rdb.o t_string.o t_list.o t_set.o t_zset.o t_hash.o config.o aof.o vm.o pubsub.o multi.o debug.o sort.o intset.o syncio.o slowlog.o bio.o memtest.o
+OBJ = adlist.o ae.o anet.o dict.o redis.o sds.o zmalloc.o lzf_c.o lzf_d.o pqsort.o zipmap.o sha1.o ziplist.o release.o networking.o util.o object.o db.o replication.o rdb.o t_string.o t_list.o t_set.o t_zset.o t_hash.o config.o aof.o vm.o pubsub.o multi.o debug.o sort.o intset.o syncio.o slowlog.o bio.o memtest.o leveldb.o
 BENCHOBJ = ae.o anet.o redis-benchmark.o sds.o adlist.o zmalloc.o
 CLIOBJ = anet.o sds.o adlist.o redis-cli.o zmalloc.o release.o
 CHECKDUMPOBJ = redis-check-dump.o lzf_c.o lzf_d.o
@@ -83,31 +84,45 @@ ae_kqueue.o: ae_kqueue.c
 ae_select.o: ae_select.c
 anet.o: anet.c fmacros.h anet.h
 aof.o: aof.c redis.h fmacros.h config.h ae.h sds.h dict.h adlist.h \
-  zmalloc.h anet.h zipmap.h ziplist.h intset.h version.h util.h
+  zmalloc.h anet.h zipmap.h ziplist.h intset.h version.h util.h \
+  ../deps/leveldb/include/leveldb/c.h bio.h
 bio.o: bio.c redis.h fmacros.h config.h ae.h sds.h dict.h adlist.h \
-  zmalloc.h anet.h zipmap.h ziplist.h intset.h version.h util.h bio.h
+  zmalloc.h anet.h zipmap.h ziplist.h intset.h version.h util.h \
+  ../deps/leveldb/include/leveldb/c.h bio.h
 config.o: config.c redis.h fmacros.h config.h ae.h sds.h dict.h adlist.h \
-  zmalloc.h anet.h zipmap.h ziplist.h intset.h version.h util.h
+  zmalloc.h anet.h zipmap.h ziplist.h intset.h version.h util.h \
+  ../deps/leveldb/include/leveldb/c.h
 db.o: db.c redis.h fmacros.h config.h ae.h sds.h dict.h adlist.h \
-  zmalloc.h anet.h zipmap.h ziplist.h intset.h version.h util.h
+  zmalloc.h anet.h zipmap.h ziplist.h intset.h version.h util.h \
+  ../deps/leveldb/include/leveldb/c.h
 debug.o: debug.c redis.h fmacros.h config.h ae.h sds.h dict.h adlist.h \
-  zmalloc.h anet.h zipmap.h ziplist.h intset.h version.h util.h sha1.h
+  zmalloc.h anet.h zipmap.h ziplist.h intset.h version.h util.h \
+  ../deps/leveldb/include/leveldb/c.h sha1.h
 dict.o: dict.c fmacros.h dict.h zmalloc.h
 endian.o: endian.c
 intset.o: intset.c intset.h zmalloc.h endian.h
+leveldb.o: leveldb.c zmalloc.h redis.h fmacros.h config.h ae.h sds.h \
+  dict.h adlist.h anet.h zipmap.h ziplist.h intset.h version.h util.h \
+  ../deps/leveldb/include/leveldb/c.h leveldb.h
 lzf_c.o: lzf_c.c lzfP.h
 lzf_d.o: lzf_d.c lzfP.h
+memtest.o: memtest.c
 multi.o: multi.c redis.h fmacros.h config.h ae.h sds.h dict.h adlist.h \
-  zmalloc.h anet.h zipmap.h ziplist.h intset.h version.h util.h
+  zmalloc.h anet.h zipmap.h ziplist.h intset.h version.h util.h \
+  ../deps/leveldb/include/leveldb/c.h
 networking.o: networking.c redis.h fmacros.h config.h ae.h sds.h dict.h \
-  adlist.h zmalloc.h anet.h zipmap.h ziplist.h intset.h version.h util.h
+  adlist.h zmalloc.h anet.h zipmap.h ziplist.h intset.h version.h util.h \
+  ../deps/leveldb/include/leveldb/c.h
 object.o: object.c redis.h fmacros.h config.h ae.h sds.h dict.h adlist.h \
-  zmalloc.h anet.h zipmap.h ziplist.h intset.h version.h util.h
+  zmalloc.h anet.h zipmap.h ziplist.h intset.h version.h util.h \
+  ../deps/leveldb/include/leveldb/c.h
 pqsort.o: pqsort.c
 pubsub.o: pubsub.c redis.h fmacros.h config.h ae.h sds.h dict.h adlist.h \
-  zmalloc.h anet.h zipmap.h ziplist.h intset.h version.h util.h
+  zmalloc.h anet.h zipmap.h ziplist.h intset.h version.h util.h \
+  ../deps/leveldb/include/leveldb/c.h
 rdb.o: rdb.c redis.h fmacros.h config.h ae.h sds.h dict.h adlist.h \
-  zmalloc.h anet.h zipmap.h ziplist.h intset.h version.h util.h lzf.h
+  zmalloc.h anet.h zipmap.h ziplist.h intset.h version.h util.h \
+  ../deps/leveldb/include/leveldb/c.h lzf.h
 redis-benchmark.o: redis-benchmark.c fmacros.h ae.h \
   ../deps/hiredis/hiredis.h sds.h adlist.h zmalloc.h
 redis-check-aof.o: redis-check-aof.c fmacros.h config.h
@@ -115,37 +130,45 @@ redis-check-dump.o: redis-check-dump.c lzf.h
 redis-cli.o: redis-cli.c fmacros.h version.h ../deps/hiredis/hiredis.h \
   sds.h zmalloc.h ../deps/linenoise/linenoise.h help.h
 redis.o: redis.c redis.h fmacros.h config.h ae.h sds.h dict.h adlist.h \
-  zmalloc.h anet.h zipmap.h ziplist.h intset.h version.h util.h slowlog.h \
-  bio.h
+  zmalloc.h anet.h zipmap.h ziplist.h intset.h version.h util.h \
+  ../deps/leveldb/include/leveldb/c.h slowlog.h bio.h leveldb.h
 release.o: release.c release.h
 replication.o: replication.c redis.h fmacros.h config.h ae.h sds.h dict.h \
-  adlist.h zmalloc.h anet.h zipmap.h ziplist.h intset.h version.h util.h
+  adlist.h zmalloc.h anet.h zipmap.h ziplist.h intset.h version.h util.h \
+  ../deps/leveldb/include/leveldb/c.h
 sds.o: sds.c sds.h zmalloc.h
 sha1.o: sha1.c sha1.h
 slowlog.o: slowlog.c redis.h fmacros.h config.h ae.h sds.h dict.h \
   adlist.h zmalloc.h anet.h zipmap.h ziplist.h intset.h version.h util.h \
-  slowlog.h
+  ../deps/leveldb/include/leveldb/c.h slowlog.h
 sort.o: sort.c redis.h fmacros.h config.h ae.h sds.h dict.h adlist.h \
-  zmalloc.h anet.h zipmap.h ziplist.h intset.h version.h util.h pqsort.h
+  zmalloc.h anet.h zipmap.h ziplist.h intset.h version.h util.h \
+  ../deps/leveldb/include/leveldb/c.h pqsort.h
 syncio.o: syncio.c redis.h fmacros.h config.h ae.h sds.h dict.h adlist.h \
-  zmalloc.h anet.h zipmap.h ziplist.h intset.h version.h util.h
+  zmalloc.h anet.h zipmap.h ziplist.h intset.h version.h util.h \
+  ../deps/leveldb/include/leveldb/c.h
 t_hash.o: t_hash.c redis.h fmacros.h config.h ae.h sds.h dict.h adlist.h \
-  zmalloc.h anet.h zipmap.h ziplist.h intset.h version.h util.h
+  zmalloc.h anet.h zipmap.h ziplist.h intset.h version.h util.h \
+  ../deps/leveldb/include/leveldb/c.h
 t_list.o: t_list.c redis.h fmacros.h config.h ae.h sds.h dict.h adlist.h \
-  zmalloc.h anet.h zipmap.h ziplist.h intset.h version.h util.h
+  zmalloc.h anet.h zipmap.h ziplist.h intset.h version.h util.h \
+  ../deps/leveldb/include/leveldb/c.h
 t_set.o: t_set.c redis.h fmacros.h config.h ae.h sds.h dict.h adlist.h \
-  zmalloc.h anet.h zipmap.h ziplist.h intset.h version.h util.h
+  zmalloc.h anet.h zipmap.h ziplist.h intset.h version.h util.h \
+  ../deps/leveldb/include/leveldb/c.h
 t_string.o: t_string.c redis.h fmacros.h config.h ae.h sds.h dict.h \
-  adlist.h zmalloc.h anet.h zipmap.h ziplist.h intset.h version.h util.h
+  adlist.h zmalloc.h anet.h zipmap.h ziplist.h intset.h version.h util.h \
+  ../deps/leveldb/include/leveldb/c.h
 t_zset.o: t_zset.c redis.h fmacros.h config.h ae.h sds.h dict.h adlist.h \
-  zmalloc.h anet.h zipmap.h ziplist.h intset.h version.h util.h
+  zmalloc.h anet.h zipmap.h ziplist.h intset.h version.h util.h \
+  ../deps/leveldb/include/leveldb/c.h
 util.o: util.c fmacros.h util.h
 vm.o: vm.c redis.h fmacros.h config.h ae.h sds.h dict.h adlist.h \
-  zmalloc.h anet.h zipmap.h ziplist.h intset.h version.h util.h
+  zmalloc.h anet.h zipmap.h ziplist.h intset.h version.h util.h \
+  ../deps/leveldb/include/leveldb/c.h
 ziplist.o: ziplist.c zmalloc.h util.h ziplist.h endian.h
 zipmap.o: zipmap.c zmalloc.h endian.h
 zmalloc.o: zmalloc.c config.h zmalloc.h
-
 .PHONY: dependencies
 
 dependencies:
@@ -189,12 +212,12 @@ redis-check-aof: $(CHECKAOFOBJ)
 	$(QUIET_LINK)$(CC) -o $(CHECKAOFPRGNAME) $(CCOPT) $(DEBUG) $(CHECKAOFOBJ) $(CCLINK)
 
 redis-server: $(OBJ)
-	$(QUIET_LINK)$(CC) -o $(PRGNAME) $(CCOPT) $(DEBUG) $(OBJ) $(CCLINK) $(ALLOC_LINK) ../deps/leveldb/libleveldb.a
+	$(QUIET_LINK)g++ -o $(PRGNAME) $(CCOPT) $(DEBUG) $(OBJ) $(CCLINK) $(ALLOC_LINK) ../deps/leveldb/libleveldb.a ../deps/snappy/.libs/libsnappy.a
 
 # Because the jemalloc.h header is generated as a part of the jemalloc build
 # process, building it should complete before building any other object.
 %.o: %.c $(ALLOC_DEP)
-	$(QUIET_CC)$(CC) -c $(CFLAGS) $(ALLOC_FLAGS) $(DEBUG) $(COMPILE_TIME) $<
+	$(QUIET_CC)$(CC) -c $(CFLAGS) $(ALLOC_FLAGS) $(DEBUG) $(COMPILE_TIME) -I ../deps/leveldb/include $<
 
 clean:
 	rm -rf $(PRGNAME) $(BENCHPRGNAME) $(CLIPRGNAME) $(CHECKDUMPPRGNAME) $(CHECKAOFPRGNAME) *.o *.gcda *.gcno *.gcov
@@ -203,7 +226,7 @@ distclean: clean
 	-(cd .. && $(MAKE) clean)
 
 dep:
-	$(CC) -MM *.c -I ../deps/hiredis -I ../deps/linenoise -I ../deps/leveldb -I ../deps/leveldb/include
+	$(CC) -MM *.c -I ../deps/hiredis -I ../deps/linenoise -I ../deps/leveldb/include
 
 test: redis-server redis-check-aof
 	@(cd ..; ./runtest)

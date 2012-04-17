@@ -31,6 +31,9 @@
 #include "version.h"
 #include "util.h"
 
+/** jdbanni: LevelDb C API include */
+#include "leveldb/c.h"
+
 /* Error codes */
 #define REDIS_OK                0
 #define REDIS_ERR               -1
@@ -302,6 +305,14 @@ typedef struct redisDb {
     dict *io_keys;              /* Keys with clients waiting for VM I/O */
     dict *watched_keys;         /* WATCHED keys for MULTI/EXEC CAS */
     int id;
+    char *leveldb_filename;     /* jdbanni: Pointer to the filename for this LevelDB instance, null if not created */
+	leveldb_t* leveldb;			/* jdbanni: Pointer to the LevelDB DB via the C API */
+	leveldb_cache_t* cache;
+	leveldb_env_t* env;
+	leveldb_options_t* options;
+	leveldb_readoptions_t* roptions;
+	leveldb_writeoptions_t* woptions;
+	leveldb_comparator_t* cmp;
 } redisDb;
 
 /* Client MULTI/EXEC state */
@@ -456,6 +467,10 @@ struct redisServer {
     char *requirepass;
     int rdbcompression;
     int activerehashing;
+    /* jdbanni: LevelDB related */
+	int leveldbenabled; /* enabled or not */
+    char *leveldbdir; /* location of leveldb database files */
+
     /* Replication related */
     int isslave;
     /* Slave specific fields */
@@ -951,6 +966,18 @@ char *redisGitSHA1(void);
 char *redisGitDirty(void);
 
 /* Commands prototypes */
+
+/** jdbanni: Level DB commands */
+void getCommandLdb(redisClient *c);
+void setCommandLdb(redisClient *c);
+void deleteCommandLdb(redisClient *c);
+void iterForwardsCommandLdb(redisClient *c);
+void iterBackwardsCommandLdb(redisClient *c);
+void iterForwardsFirstCommandLdb(redisClient *c);
+void iterBackwardsFirstCommandLdb(redisClient *c);
+void compactCommandLdb(redisClient *c);
+void repairCommandLdb(redisClient *c);
+
 void authCommand(redisClient *c);
 void pingCommand(redisClient *c);
 void echoCommand(redisClient *c);

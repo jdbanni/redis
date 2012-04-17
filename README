@@ -8,7 +8,22 @@ LevelDB
 -------
 
 This version of Redis is linked to Googles LevelDB key/value store implementation. Included
-is Snappy compression.
+is Snappy compression, also from Google. A number of new commands are provided to interact with 
+LevelDB, all prefixed using "ldb":
+
+ldbset
+ldbget
+ldbcompact
+ldbrepair
+ldbrange
+
+Redis still follows the single threaded model as usual, so be aware that a large write to LevelDB will 
+block other clients. All writes will also be cached in Redis as per the normal Redis configuration file,
+and reads will be performed from Redis before going to LevelDB. The exception is for ranged queries
+where these calls will always be performed on LevelDB only.
+
+Compact and Repair can be long running operations that should be used carefully. If one of the available Redis databases
+is selected, then this will create a new LevelDB database (up-to the Redis maximum, typically 16).
 
 Building Redis
 --------------

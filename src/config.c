@@ -215,6 +215,14 @@ void loadServerConfig(char *filename) {
             }
         } else if (!strcasecmp(argv[0],"glueoutputbuf")) {
             redisLog(REDIS_WARNING, "Deprecated configuration directive: \"%s\"", argv[0]);
+/** jdbanni: leveldb options */
+        } else if (!strcasecmp(argv[0],"leveldbenabled") && argc == 2) {
+            if ((server.leveldbenabled = yesnotoi(argv[1])) == -1) {
+                err = "argument must be 'yes' or 'no'"; goto loaderr;
+            }
+/** jdbanni: leveldb options */
+        } else if (!strcasecmp(argv[0],"leveldbdir") && argc == 2) {
+            server.leveldbdir = zstrdup(argv[1]);	
         } else if (!strcasecmp(argv[0],"rdbcompression") && argc == 2) {
             if ((server.rdbcompression = yesnotoi(argv[1])) == -1) {
                 err = "argument must be 'yes' or 'no'"; goto loaderr;

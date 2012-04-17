@@ -31,6 +31,9 @@
 #include "slowlog.h"
 #include "bio.h"
 
+/** jdbanni */
+#include "leveldb.h"
+
 #ifdef HAVE_BACKTRACE
 #include <execinfo.h>
 #include <ucontext.h>
@@ -73,6 +76,17 @@ struct redisCommand *commandTable;
 struct redisCommand readonlyCommandTable[] = {
     {"get",getCommand,2,0,NULL,1,1,1},
     {"set",setCommand,3,REDIS_CMD_DENYOOM,NULL,0,0,0},
+/* jdbanni: LevelDB commands */
+    {"ldbget",getCommandLdb,2,0,NULL,0,0,0},
+    {"ldbset",setCommandLdb,3,REDIS_CMD_DENYOOM,NULL,0,0,0},
+    {"ldbdel",deleteCommandLdb,2,0,NULL,0,0,0},
+    {"ldbiterforwards",iterForwardsCommandLdb,3,REDIS_CMD_DENYOOM,NULL,0,0,0},
+    {"ldbiterbackwards",iterBackwardsCommandLdb,3,REDIS_CMD_DENYOOM,NULL,0,0,0},
+    {"ldbiterfirstforwards",iterForwardsFirstCommandLdb,2,REDIS_CMD_DENYOOM,NULL,0,0,0},
+    {"ldbiterlastbackwards",iterBackwardsFirstCommandLdb,2,REDIS_CMD_DENYOOM,NULL,0,0,0},
+    {"ldbcompact",compactCommandLdb,1,REDIS_CMD_DENYOOM,NULL,0,0,0},
+    {"ldbrepair",repairCommandLdb,1,REDIS_CMD_DENYOOM,NULL,0,0,0},
+
     {"setnx",setnxCommand,3,REDIS_CMD_DENYOOM,NULL,0,0,0},
     {"setex",setexCommand,4,REDIS_CMD_DENYOOM,NULL,0,0,0},
     {"append",appendCommand,3,REDIS_CMD_DENYOOM,NULL,1,1,1},
@@ -825,6 +839,10 @@ void initServerConfig() {
     server.pidfile = zstrdup("/var/run/redis.pid");
     server.dbfilename = zstrdup("dump.rdb");
     server.appendfilename = zstrdup("appendonly.aof");
+/* jdbanni: leveldb config */
+	server.leveldbenabled=0;
+	server.leveldbdir=zstrdup("./leveldb");
+	
     server.requirepass = NULL;
     server.rdbcompression = 1;
     server.activerehashing = 1;
@@ -943,7 +961,17 @@ void initServer() {
         if (server.vm_enabled)
             server.db[j].io_keys = dictCreate(&keylistDictType,NULL);
         server.db[j].id = j;
+
+		/** jdbanni: try to open leveldb databases */
+		if (server.leveldbenabled) {
+			openLevelDB(&server.db[j]);
+			if (server.db[j].leveldb == NULL) {
+	            redisLog(REDIS_WARNING, "Failed to open LevelDB database: %d", j);
+				exit(1);
+			}
+		}
     }
+
     server.pubsub_channels = dictCreate(&keylistDictType,NULL);
     server.pubsub_patterns = listCreate();
     listSetFreeMethod(server.pubsub_patterns,freePubsubPattern);
@@ -1146,6 +1174,9 @@ int processCommand(redisClient *c) {
 /*================================== Shutdown =============================== */
 
 int prepareForShutdown() {
+	/* jdbanni */
+	int j;
+	
     redisLog(REDIS_WARNING,"User requested shutdown...");
     /* Kill the saving child if there is a background saving in progress.
        We want to avoid race conditions, for instance our saving child may
@@ -1180,6 +1211,14 @@ int prepareForShutdown() {
             return REDIS_ERR;
         }
     }
+
+	/** jdbanni: Close LevelDB */
+	if (server.leveldbenabled) {
+		for (j = 0; j < server.dbnum; j++) {
+			closeLevelDB(&server.db[j]);
+		}	    
+	}
+	
     if (server.vm_enabled) {
         redisLog(REDIS_NOTICE,"Removing the swap file.");
         unlink(server.vm_swap_file);
