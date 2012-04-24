@@ -79,8 +79,9 @@ struct redisCommand readonlyCommandTable[] = {
 /* jdbanni: LevelDB commands */
     {"ldbget",getCommandLdb,2,0,NULL,0,0,0},
     {"ldbset",setCommandLdb,3,REDIS_CMD_DENYOOM,NULL,0,0,0},
+    {"ldbappend",appendCommandLdb,3,REDIS_CMD_DENYOOM,NULL,0,0,0},
     {"ldbdel",deleteCommandLdb,2,0,NULL,0,0,0},
-    {"ldbiterforwards",iterForwardsCommandLdb,3,REDIS_CMD_DENYOOM,NULL,0,0,0},
+    {"ldbiterforwards",iterForwardsCommandLdb,4,REDIS_CMD_DENYOOM,NULL,0,0,0},
     {"ldbiterbackwards",iterBackwardsCommandLdb,3,REDIS_CMD_DENYOOM,NULL,0,0,0},
     {"ldbiterfirstforwards",iterForwardsFirstCommandLdb,2,REDIS_CMD_DENYOOM,NULL,0,0,0},
     {"ldbiterlastbackwards",iterBackwardsFirstCommandLdb,2,REDIS_CMD_DENYOOM,NULL,0,0,0},

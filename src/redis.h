@@ -970,6 +970,7 @@ char *redisGitDirty(void);
 /** jdbanni: Level DB commands */
 void getCommandLdb(redisClient *c);
 void setCommandLdb(redisClient *c);
+void appendCommandLdb(redisClient *c);
 void deleteCommandLdb(redisClient *c);
 void iterForwardsCommandLdb(redisClient *c);
 void iterBackwardsCommandLdb(redisClient *c);

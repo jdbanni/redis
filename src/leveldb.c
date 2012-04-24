@@ -4,6 +4,19 @@
 #include "redis.h"
 #include "leveldb.h"
 
+/** constants */
+robj *iterateKeys = NULL;
+robj *iterateValues = NULL;
+robj *iterateKeysAndValues = NULL;
+
+#define ITERMODE_KEYSONLY 0
+#define ITERMODE_VALUESONLY 1
+#define ITERMODE_KEYSANDVALUES 2
+
+
+/*****************************************************************************/
+
+/** error checking */
 #define checkNoError(err)                                                   \
 	if ((err) != NULL) {                                                    \
 		fprintf(stderr, "%s:%d: %s\n", __FILE__, __LINE__, (err));          \
@@ -15,6 +28,18 @@
     fprintf(stderr, "%s:%d: %s\n", __FILE__, __LINE__, #cond);          \
     abort();                                                            \
   }
+
+/** leveldb memory defines (no clash with redis) **/
+
+#undef malloc
+#undef free
+
+#define ldb_malloc(s) malloc(s)
+#define ldb_free(s) free(s)
+
+/*****************************************************************************/
+
+/** helpers **/
 
 void createLevelDBFilename(redisDb *db) {
 	asprintf(&db->leveldb_filename, "%s/%d", server.leveldbdir, db->id);
@@ -58,11 +83,20 @@ static const char* strncasecmpName(void *arg) {
 	return "strncasecmp";
 }
 
+/*****************************************************************************/
+
+/** main level db private functions **/
+
 /** jdbanni: open a Level Db database */
 int openLevelDB(redisDb *db) {
 	char *err = NULL;
 
 	createLevelDBFilename(db);
+	
+	/** create some string constants **/
+	iterateKeys = createObject(REDIS_STRING,sdsnew("keys"));
+	iterateValues = createObject(REDIS_STRING,sdsnew("values"));
+	iterateKeysAndValues = createObject(REDIS_STRING,sdsnew("keysandvalues"));
 	
 	/** create the relevant data structures for this database */
 	db->env = leveldb_create_default_env();
@@ -70,10 +104,10 @@ int openLevelDB(redisDb *db) {
 	db->options = leveldb_options_create();
 	db->roptions = leveldb_readoptions_create();
 	db->woptions = leveldb_writeoptions_create();
-//	db->cmp = leveldb_comparator_create(NULL, comparatorDestroy, strncasecmpCompare, strncasecmpName);
+	db->cmp = leveldb_comparator_create(NULL, comparatorDestroy, strncasecmpCompare, strncasecmpName);
   
 	/* database options */
-//	leveldb_options_set_comparator(db->options, db->cmp);
+	leveldb_options_set_comparator(db->options, db->cmp);
 	leveldb_options_set_error_if_exists(db->options, 0);
 	leveldb_options_set_cache(db->options, db->cache);
 	leveldb_options_set_env(db->options, db->env);
@@ -103,7 +137,7 @@ int openLevelDB(redisDb *db) {
 /** jdbanni: close a Level DB database */
 int closeLevelDB(redisDb *db) {
 	leveldb_close(db->leveldb);
-//	leveldb_comparator_destroy(db->cmp);
+	leveldb_comparator_destroy(db->cmp);
 	leveldb_options_destroy(db->options);
 	leveldb_readoptions_destroy(db->roptions);
 	leveldb_writeoptions_destroy(db->woptions);
@@ -142,8 +176,46 @@ int getLevelDB(redisDb *db, robj *key, robj **value) {
 		*value=createStringObject(tempvalue, value_len);
 	
 		/** free the value from level db */
-		zfree(tempvalue);
+		ldb_free(tempvalue);
 	}
+	
+	return REDIS_OK;	
+}
+
+/** append a value to an already opened database */
+int appendLevelDB(redisDb *db, robj *key, robj *value) {
+	char *err = NULL;
+	size_t existingvalue_len=0, newvalue_len=0;
+	char *existingvalue, *newvalue;
+	
+	/** first see if it exists */
+	existingvalue = leveldb_get(db->leveldb, db->roptions, key->ptr, stringObjectLen(key), &existingvalue_len, &err);	
+	checkNoError(err);
+	
+	if (existingvalue == NULL || existingvalue_len == 0) {
+		/** a new value (or an existing 0 length one) **/
+		leveldb_put(db->leveldb, db->woptions, key->ptr, stringObjectLen(key), value->ptr, stringObjectLen(value), &err);
+		checkNoError(err);	
+	} else {		
+		/** create the array of pointers to keys/values */
+		newvalue_len=existingvalue_len + stringObjectLen(value);
+		newvalue=zmalloc(newvalue_len);
+		
+		/** copy the existing value **/
+		memcpy(newvalue, existingvalue, existingvalue_len);
+		/** copy the new value **/
+		memcpy(newvalue + existingvalue_len, value->ptr, stringObjectLen(value));
+		
+		/** now write the new value **/
+		leveldb_put(db->leveldb, db->woptions, key->ptr, stringObjectLen(key), newvalue, newvalue_len, &err);
+		checkNoError(err);		
+		
+		/** free the new value **/
+		zfree(newvalue);
+	}
+	
+	/** free the value returned from level db */
+	ldb_free(existingvalue);
 	
 	return REDIS_OK;	
 }
@@ -159,13 +231,13 @@ int deleteLevelDB(redisDb *db, robj *key) {
 }
 
 /** iterate forwards from a key, returning a number of keys */
-int iterateKeysForwardsLevelDB(redisDb *db, robj *key, robj *keys[], long *count) {
+int iterateKeysForwardsLevelDB(redisDb *db, robj *key, robj *response[], long *count, int mode) {
 	char *err = NULL;
-	char *tempkey=NULL;
+	char *tempkey, *tempvalue;
 	leveldb_iterator_t *iter;
-	robj *iterkey;
-	size_t key_len;
-	long i;
+	robj *iterkey, *itervalue;
+	size_t key_len, value_len;
+	long i,index;
 
 	/** create the iterator */
 	iter=leveldb_create_iterator(db->leveldb, db->roptions);
@@ -173,25 +245,44 @@ int iterateKeysForwardsLevelDB(redisDb *db, robj *key, robj *keys[], long *count
     
 	/** and position it */
     leveldb_iter_seek(iter, key->ptr, stringObjectLen(key));
-		
-	/** now get all the keys */
-	for (i=0;i < *count;i++) {
+
+	/** now go through all the keys */
+	for (i=0, index=0;i < *count;i++) {
         if (!leveldb_iter_valid(iter)) {
             /** iterator no longer valid, so return what we currently have */
             break;
         }
-		tempkey=(char *)leveldb_iter_key(iter, &key_len);
-		
-		/** create the key object */
-		iterkey=createStringObject(tempkey, key_len);
-		keys[i]=iterkey;
+
+		switch (mode) {
+			case ITERMODE_KEYSONLY:
+				tempkey=(char *)leveldb_iter_key(iter, &key_len);
+				iterkey=createStringObject(tempkey, key_len);
+				response[index++]=iterkey;
+				break;
+			case ITERMODE_VALUESONLY:
+				tempvalue=(char *)leveldb_iter_value(iter, &value_len);
+				itervalue=createStringObject(tempvalue, value_len);
+				response[index++]=itervalue;
+				break;
+			case ITERMODE_KEYSANDVALUES:
+				/** fetch the key **/
+				tempkey=(char *)leveldb_iter_key(iter, &key_len);
+				iterkey=createStringObject(tempkey, key_len);
+				response[index++]=iterkey;
+
+				/** fetch the value **/
+				tempvalue=(char *)leveldb_iter_value(iter, &value_len);
+				itervalue=createStringObject(tempvalue, value_len);
+				response[index++]=itervalue;
+				break;
+		}
 		
 		/** move the iterator to the next key */
 	    leveldb_iter_next(iter);
 	}
 	
 	/** the final count */
-	*count=i;
+	*count=index;
 	
 	/** remove the iterator */
 	leveldb_iter_destroy(iter);
@@ -231,12 +322,29 @@ int compactLevelDB(redisDb *db) {
 	return REDIS_OK;			
 }
 
-/** jdbanni: for writing to LevelDB. We don't use the object encoding, instead relying on snappy if set */
+/*****************************************************************************/
+
+/** public externed commands **/
+
+/** jdbanni: for writing to LevelDB */
 void setCommandLdb(redisClient *c) {
 	if (setLevelDB(c->db, c->argv[1], c->argv[2]) != REDIS_OK) {
         addReplyError(c,"unable to set a LevelDB value using LDBSET");		
 	}
-	server.dirty++;
+	
+//	server.dirty++;
+	addReply(c,shared.ok);
+}
+
+/** jdbanni: for appending to an existing value, creating if not exists to LevelDB */
+void appendCommandLdb(redisClient *c) {
+	robj *value;
+
+	if (appendLevelDB(c->db, c->argv[1], c->argv[2]) != REDIS_OK) {
+        addReplyError(c,"unable to append a LevelDB value using LDBSET");		
+	}
+	
+//	server.dirty++;
 	addReply(c,shared.ok);
 }
 
@@ -264,30 +372,46 @@ void deleteCommandLdb(redisClient *c) {
 	if (deleteLevelDB(c->db, c->argv[1]) != REDIS_OK) {
         addReplyError(c,"unable to delete a LevelDB value using LDBDEL");		
 	}
-	server.dirty++;
+//	server.dirty++;
 	addReply(c,shared.ok);
 }
 
 /** jdbanni: iterate forwards from a supplied key to a specified count of keys */
 void iterForwardsCommandLdb(redisClient *c) {
-	robj **keys;
-	long count;
+	robj **response;
+	long count, itemcount;
 	long i;
+	int mode=ITERMODE_KEYSONLY;
 
 	/** get the count of keys to return */
 	getLongFromObjectOrReply(c, c->argv[2], &count, NULL);	
 
-	/** bounds check */
+	/** bounds check (arbitrary limit) */
 	if (count < 1 || count > 0xFFFF) {
         addReplyError(c,"unable to iterate over > 65535 keys in LDBITERFORWARDS");	
 		return;
 	}
-	
-    /** create the array of pointers to keys */
-	keys=zmalloc(sizeof(robj *) * (count));
 
-	/** now iterate */
-	if (iterateKeysForwardsLevelDB(c->db, c->argv[1], keys, &count) != REDIS_OK) {
+	/** check the mode required **/
+	if (compareStringObjects(c->argv[3], iterateKeys) == 0) {
+		mode=ITERMODE_KEYSONLY;
+		itemcount=count;
+	} else if (compareStringObjects(c->argv[3], iterateValues) == 0) {
+		mode=ITERMODE_VALUESONLY;
+		itemcount=count;
+	} else if (compareStringObjects(c->argv[3], iterateKeysAndValues) == 0) {
+		mode=ITERMODE_KEYSANDVALUES;
+		itemcount=count*2; /** double the count required **/
+	} else {
+        addReplyError(c,"mode must be one of: keys, values, keysandvalues");	
+		return;
+	}
+	
+    /** create the array of pointers to keys/values */
+	response=zmalloc(sizeof(robj *) * (itemcount));
+
+	/** now iterate, count will hold the number of response objects */
+	if (iterateKeysForwardsLevelDB(c->db, c->argv[1], response, &count, mode) != REDIS_OK) {
         addReplyError(c,"unable to iterate LevelDB value using LDBITERFORWARDS");				
 		return;
 	}
@@ -299,17 +423,15 @@ void iterForwardsCommandLdb(redisClient *c) {
 		/** the total count found */
 		addReplyMultiBulkLen(c,count);
 	    	
-		/** add the replies */
+		/** add the replies (which could be keys, values or keys/values) */
 		for (i=0;i < count;i++) {
-			if (keys != NULL) {
-				addReplyBulk(c, keys[i]);
-				decrRefCount(keys[i]);		
-			}
+			addReplyBulk(c, response[i]);
+			decrRefCount(response[i]);		
 		}		
 	}
 	
 	/** free the array as well */
-	zfree(keys);
+	zfree(response);
 }
 
 void iterBackwardsCommandLdb(redisClient *c) {
