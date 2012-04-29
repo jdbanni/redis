@@ -87,6 +87,7 @@ struct redisCommand readonlyCommandTable[] = {
     {"ldbiterlastbackwards",iterBackwardsFirstCommandLdb,2,REDIS_CMD_DENYOOM,NULL,0,0,0},
     {"ldbcompact",compactCommandLdb,1,REDIS_CMD_DENYOOM,NULL,0,0,0},
     {"ldbrepair",repairCommandLdb,1,REDIS_CMD_DENYOOM,NULL,0,0,0},
+    {"ldbcache", cacheLdb,3,0,NULL,0,0,0},
 
     {"setnx",setnxCommand,3,REDIS_CMD_DENYOOM,NULL,0,0,0},
     {"setex",setexCommand,4,REDIS_CMD_DENYOOM,NULL,0,0,0},

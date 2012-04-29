@@ -65,6 +65,11 @@ redisClient *createClient(int fd) {
     listSetMatchMethod(c->pubsub_patterns,listMatchObjects);
     listAddNodeTail(server.clients,c);
     initClientMultiState(c);
+
+/** jdbanni -- by default don't use the redis cache with no expiry */
+	c->ldbUseCache=FALSE;
+	c->ldbExpiryTime=-1;
+	
     return c;
 }
 

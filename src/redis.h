@@ -369,6 +369,10 @@ typedef struct redisClient {
     dict *pubsub_channels;  /* channels a client is interested in (SUBSCRIBE) */
     list *pubsub_patterns;  /* patterns a client is interested in (SUBSCRIBE) */
 
+/** jdbanni - added */
+	int ldbUseCache;		/* When using LevelDB, whether to also use Redis cache too */
+	long ldbExpiryTime;		/** Expiry time, or -1 if not being used */
+	
     /* Response buffer */
     int bufpos;
     char buf[REDIS_REPLY_CHUNK_BYTES];
@@ -978,6 +982,7 @@ void iterForwardsFirstCommandLdb(redisClient *c);
 void iterBackwardsFirstCommandLdb(redisClient *c);
 void compactCommandLdb(redisClient *c);
 void repairCommandLdb(redisClient *c);
+void cacheLdb(redisClient *c);
 
 void authCommand(redisClient *c);
 void pingCommand(redisClient *c);

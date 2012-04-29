@@ -5,7 +5,7 @@ snappy-sinksource.lo snappy-sinksource.o: snappy-sinksource.cc \
   /usr/include/i386/_types.h /usr/include/Availability.h \
   /usr/include/AvailabilityInternal.h /usr/include/strings.h \
   snappy-sinksource.h \
-  /usr/llvm-gcc-4.2/bin/../lib/gcc/i686-apple-darwin11/4.2.1/include/stddef.h
+  /Developer/usr/llvm-gcc-4.2/lib/gcc/i686-apple-darwin11/4.2.1/include/stddef.h
 
 /usr/include/string.h:
 
@@ -31,4 +31,4 @@ snappy-sinksource.lo snappy-sinksource.o: snappy-sinksource.cc \
 
 snappy-sinksource.h:
 
-/usr/llvm-gcc-4.2/bin/../lib/gcc/i686-apple-darwin11/4.2.1/include/stddef.h:
+/Developer/usr/llvm-gcc-4.2/lib/gcc/i686-apple-darwin11/4.2.1/include/stddef.h:
