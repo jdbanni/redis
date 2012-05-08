@@ -117,7 +117,7 @@ int openLevelDB(redisDb *db) {
 	leveldb_options_set_write_buffer_size(db->options, 1024 *1024 * 128);
 	leveldb_options_set_paranoid_checks(db->options, 0);
 	leveldb_options_set_max_open_files(db->options, 1000); 
-	leveldb_options_set_block_size(db->options, 1024 * 8);
+	leveldb_options_set_block_size(db->options, 1024 * 32);
 	leveldb_options_set_compression(db->options, leveldb_snappy_compression);
 	leveldb_options_set_create_if_missing(db->options, 1);
 
@@ -236,7 +236,7 @@ int deleteLevelDB(redisDb *db, robj *key) {
 }
 
 /** iterate forwards from a key, returning a number of keys */
-int iterateKeysForwardsLevelDB(redisDb *db, robj *key, robj *response[], long *count, int mode) {
+int iterateKeysForwardsLevelDB(redisDb *db, robj *key, robj *response[], long *count) {
 	char *err = NULL;
 	char *tempkey, *tempvalue;
 	leveldb_iterator_t *iter;
@@ -258,24 +258,15 @@ int iterateKeysForwardsLevelDB(redisDb *db, robj *key, robj *response[], long *c
             break;
         }
 
-		switch (mode) {
-			case ITERMODE_KEYSONLY:
-				tempkey=(char *)leveldb_iter_key(iter, &key_len);
-				iterkey=createStringObject(tempkey, key_len);
-				response[index++]=iterkey;
-				break;
-			case ITERMODE_KEYSANDVALUES:
-				/** fetch the key **/
-				tempkey=(char *)leveldb_iter_key(iter, &key_len);
-				iterkey=createStringObject(tempkey, key_len);
-				response[index++]=iterkey;
+		/** fetch the key **/
+		tempkey=(char *)leveldb_iter_key(iter, &key_len);
+		iterkey=createStringObject(tempkey, key_len);
+		response[index++]=iterkey;
 
-				/** fetch the value **/
-				tempvalue=(char *)leveldb_iter_value(iter, &value_len);
-				itervalue=createStringObject(tempvalue, value_len);
-				response[index++]=itervalue;
-				break;
-		}
+		/** fetch the value **/
+		tempvalue=(char *)leveldb_iter_value(iter, &value_len);
+		itervalue=createStringObject(tempvalue, value_len);
+		response[index++]=itervalue;
 		
 		/** move the iterator to the next key */
 	    leveldb_iter_next(iter);
@@ -333,7 +324,7 @@ void setCommandLdb(redisClient *c) {
 	}
 	
 	/** set the key to Redis as well if required */
-	if (c->ldbUseCache == TRUE) {
+	if (c->ldbUseCache == 1) {
 		setKey(c->db, c->argv[1], c->argv[2]);	
 		server.dirty++;
 		if (c->ldbExpiryTime) setExpire(c->db,c->argv[1],time(NULL)+c->ldbExpiryTime);	    
@@ -361,32 +352,41 @@ void appendCommandLdb(redisClient *c) {
 void getCommandLdb(redisClient *c) {
 	robj *value=NULL;
 	
-	/** try the redis cache first */
-	if (c->ldbUseCache == TRUE) {
+	if (c->ldbUseCache == 1) {
+		/** try the redis cache first */
 		value=lookupKeyRead(c->db, c->argv[1]);
-	}
-	
-	if (value == NULL) {
+		
+		if (value != NULL) {
+			addReplyBulk(c, value);			
+		} else {
+			if (getLevelDB(c->db, c->argv[1], &value) != REDIS_OK) {
+		        addReplyError(c,"unable to get a LevelDB value using LDBGET");		
+			}			
+			
+			if (value != NULL) {
+				/** set the key to Redis as well if required */
+				setKey(c->db, c->argv[1], value);	
+				server.dirty++;
+				if (c->ldbExpiryTime) setExpire(c->db,c->argv[1],time(NULL)+c->ldbExpiryTime);
+			
+				addReplyBulk(c, value);
+				decrRefCount(value);
+			} else {
+				addReply(c, shared.nullbulk);
+			}
+		}
+	} else {
+		/** not using the cache */
 		if (getLevelDB(c->db, c->argv[1], &value) != REDIS_OK) {
 	        addReplyError(c,"unable to get a LevelDB value using LDBGET");		
 		}
-		
-		/** set the key to Redis as well if required */
-		if (c->ldbUseCache == TRUE) {
-			setKey(c->db, c->argv[1], value);	
-			server.dirty++;
-			if (c->ldbExpiryTime) setExpire(c->db,c->argv[1],time(NULL)+c->ldbExpiryTime);	    
-		}
-	}
 	
-	if (value != NULL) {
-		/** for return to the networking layer */
-		addReplyBulk(c, value);
-
-		/** free the object */
-		decrRefCount(value);
-	} else {
-		addReply(c, shared.nullbulk);
+		if (value != NULL) {
+			addReplyBulk(c, value);			
+			decrRefCount(value);
+		} else {
+			addReply(c, shared.nullbulk);
+		}
 	}
 }
 
@@ -396,7 +396,7 @@ void deleteCommandLdb(redisClient *c) {
         addReplyError(c,"unable to delete a LevelDB value using LDBDEL");		
 	}
 	
-	if (c->ldbUseCache == TRUE) {
+	if (c->ldbUseCache == 1) {
 		dbDelete(c->db, c->argv[1]);
 		server.dirty++;
 	}
@@ -436,7 +436,7 @@ void iterForwardsCommandLdb(redisClient *c) {
 	response=zmalloc(sizeof(robj *) * (itemcount));
 
 	/** now iterate, count will hold the number of response objects */
-	if (iterateKeysForwardsLevelDB(c->db, c->argv[1], response, &count, mode) != REDIS_OK) {
+	if (iterateKeysForwardsLevelDB(c->db, c->argv[1], response, &count) != REDIS_OK) {
         addReplyError(c,"unable to iterate LevelDB value using LDBITERFORWARDS");				
 		return;
 	}
@@ -446,12 +446,29 @@ void iterForwardsCommandLdb(redisClient *c) {
 		addReply(c, shared.nullbulk);		
 	} else {	
 		/** the total count found */
-		addReplyMultiBulkLen(c,count);
-	    	
+		if (mode == ITERMODE_KEYSONLY)
+			addReplyMultiBulkLen(c,count/2);
+		else
+			addReplyMultiBulkLen(c,count);
+		
 		/** add the replies (which could be keys, values or keys/values) */
-		for (i=0;i < count;i++) {
-			addReplyBulk(c, response[i]);
-			decrRefCount(response[i]);		
+		for (i=0;i < count;i+=2) {
+			/** set the key to Redis as well if required (keys are even, values are odd)*/
+			if (c->ldbUseCache == 1) {
+				setKey(c->db, response[i], response[i+1]);	
+				server.dirty++;
+				if (c->ldbExpiryTime) setExpire(c->db,response[i],time(NULL)+c->ldbExpiryTime);	    
+			}
+			
+			if (mode == ITERMODE_KEYSONLY) {
+				addReplyBulk(c, response[i]); /** keys */
+			}
+			else if (mode == ITERMODE_KEYSANDVALUES) {
+				addReplyBulk(c, response[i]); /** keys */
+				addReplyBulk(c, response[i+1]); /** values */
+			}
+			decrRefCount(response[i]); /** frees the key, it is duplicated in setKey() if in the cache **/
+			decrRefCount(response[i+1]); /** frees the value, if has been incremented if we are caching **/
 		}		
 	}
 	
@@ -497,7 +514,7 @@ void cacheLdb(redisClient *c) {
 	if (getLongFromObjectOrReply(c, c->argv[1], &expiryTime, NULL) == REDIS_ERR)
 		return;
 
-    if (expiryTime <= 0) {
+    if (expiryTime < 0) {
         addReplyError(c,"invalid expire time in LDBCACHE");
         return;
     }
@@ -505,10 +522,10 @@ void cacheLdb(redisClient *c) {
 	/** check the mode required and set it for this client **/
 	if (compareStringObjects(c->argv[2], ldbCacheOn) == 0) {
 		c->ldbExpiryTime=expiryTime;
-		c->ldbUseCache=TRUE;
+		c->ldbUseCache=1;
 	} else if (compareStringObjects(c->argv[2], ldbCacheOff) == 0) {
 		c->ldbExpiryTime=expiryTime;
-		c->ldbUseCache=FALSE;
+		c->ldbUseCache=0;
 	} else {
         addReplyError(c,"cache mode must be ON or OFF");	
 		return;

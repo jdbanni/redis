@@ -19,7 +19,7 @@ extern int getLevelDB(redisDb *db, robj *key, robj **value);
 extern int deleteLevelDB(redisDb *db, robj *key);
 
 /** iterate forwards from a key, returning a number of keys */
-extern int iterateKeysForwardsLevelDB(redisDb *db, robj *key, robj *value[], long *count, int mode);
+extern int iterateKeysForwardsLevelDB(redisDb *db, robj *key, robj *value[], long *count);
 
 /** iterate forwards from the end, returning a number of keys */
 extern int iterateKeysForwardsFirstLevelDB(redisDb *db, robj **value, long *count);

@@ -67,8 +67,8 @@ redisClient *createClient(int fd) {
     initClientMultiState(c);
 
 /** jdbanni -- by default don't use the redis cache with no expiry */
-	c->ldbUseCache=FALSE;
-	c->ldbExpiryTime=-1;
+	c->ldbUseCache=0;
+	c->ldbExpiryTime=0;
 	
     return c;
 }
