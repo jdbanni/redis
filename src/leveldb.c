@@ -440,7 +440,7 @@ void iterForwardsCommandLdb(redisClient *c) {
         addReplyError(c,"unable to iterate LevelDB value using LDBITERFORWARDS");				
 		return;
 	}
-	
+	 
 	/** must have at least one item to return */
 	if (count == 0) {
 		addReply(c, shared.nullbulk);		

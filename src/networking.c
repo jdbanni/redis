@@ -54,7 +54,7 @@ redisClient *createClient(int fd) {
     listSetDupMethod(c->reply,dupClientReplyValue);
     c->bpop.keys = NULL;
     c->bpop.count = 0;
-    c->bpop.timeout = 0;
+    c->bpop.timeout = 0; 
     c->bpop.target = NULL;
     c->io_keys = listCreate();
     c->watched_keys = listCreate();
